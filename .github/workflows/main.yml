@@ -1,0 +1,70 @@
+name: CI - CD Process
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build_for_ci:
+  
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.13
+        id: go
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get dependencies
+        run: |
+          go get -v -t ./...
+          if [ -f Gopkg.toml ]; then
+            curl https://raw.githubusercontent.com/golang/dep/master/install.sh | s
+            dep ensure
+          fi
+
+      - name: Build package
+        run: go build -v ./cmd/server.go
+
+      - name: Run Tests
+        run: go test -v ./...
+
+  build_for_cd:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Setup gcloud CLI
+        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          version: '275.0.0'
+          service_account_email: ${{ secrets.SA_EMAIL }}
+          service_account_key: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      - name: Configure gcloud cli
+        run: |
+          gcloud config set project $PROJECT
+
+      - name: Build and push image to Google Container Registry
+        run: |
+          gcloud builds submit -t gcr.io/$PROJECT/$SERVICE_NAME:$GITHUB_SHA
+
+      - name: Deploy to Google Cloud Run
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --region $REGION \
+            --image gcr.io/$PROJECT/$SERVICE_NAME:$GITHUB_SHA \
+            --platform managed
+      
