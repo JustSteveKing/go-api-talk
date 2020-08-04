@@ -8,6 +8,11 @@ on:
     branches:
       - master
 
+env:
+  SERVICE_NAME: ""
+  PROJECT: ""
+  REGION: ""
+
 jobs:
   build_for_ci:
   
